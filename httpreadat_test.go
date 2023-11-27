@@ -34,7 +34,10 @@ func TestHTTPReadAt(t *testing.T) {
 
 	defer server.Close()
 
-	rr := New(server.URL + "/file")
+	rr, err := New(server.URL + "/file")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	checks := []struct {
 		off  int

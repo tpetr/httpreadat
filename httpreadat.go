@@ -2,6 +2,7 @@
 package httpreadat
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,14 +13,23 @@ import (
 )
 
 type RangeReader struct {
-	url          string
+	request      *http.Request
 	roundTripper http.RoundTripper
 	cacheHandler CacheHandler
 }
 
-func New(url string, opts ...Option) *RangeReader {
+func New(url string, opts ...Option) (*RangeReader, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRequest(req, opts...), nil
+}
+
+func NewRequest(request *http.Request, opts ...Option) *RangeReader {
 	rr := RangeReader{
-		url: url,
+		request: request,
 	}
 
 	for _, opt := range opts {
@@ -32,10 +42,7 @@ func New(url string, opts ...Option) *RangeReader {
 func (rr *RangeReader) rawReadAt(p []byte, off int64) (n int, err error) {
 	fetchSize := len(p)
 
-	req, err := http.NewRequest("GET", rr.url, nil)
-	if err != nil {
-		return 0, err
-	}
+	req := rr.request.Clone(context.Background())
 
 	req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", off, off+int64(fetchSize-1)))
 
@@ -80,10 +87,7 @@ func (rr *RangeReader) client() *http.Client {
 }
 
 func (rr *RangeReader) Size() (n int64, err error) {
-	req, err := http.NewRequest("GET", rr.url, nil)
-	if err != nil {
-		return 0, err
-	}
+	req := rr.request.Clone(context.Background())
 
 	req.Header.Set("Range", "bytes=0-0")
 	resp, err := rr.client().Do(req)
